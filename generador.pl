@@ -3,9 +3,11 @@
 use strict;
 use warnings;
 use 5.010;
-use Getopt::Long qw(GetOptions);
+use Getopt::Long qw(GetOptions);	
 use Pod::Usage;
 use Data::Dumper;
+use SnortUnified(qw(:ALL));
+use Socket;
 
 	#variables para las opciones del programa
     my ($help,$cont,$dir,$org,$log);
@@ -26,10 +28,7 @@ use Data::Dumper;
     pod2usage(-verbose => 2) if ($help);
      
     
-    #if ($help) {
-    #    help();
-    #}
-    #elsif(@batch){
+    #if(@batch){
     #    batch();
     #}
     
@@ -58,6 +57,41 @@ use Data::Dumper;
     sub log {
 
     }
+
+    my $record; #variable para cada evento IDS y paquete del archivo
+	my $UF_DATA = openSnortUnified(shift); #se lee el archivo de snort
+
+	#se muestra en pantalla el contenido del archivo
+	while($record = readSnortUnified2Record()){
+		print "record type " . $record->{'TYPE'} . " is " . $UNIFIED2_TYPES->{$record->{'TYPE'}} . "\n";
+		foreach my $field ( @{$record->{'FIELDS'}} ){
+			if ($field ne 'pkt' && $field ne 'data_blob'){
+				print("Campo " . $field . " : " . $record->{$field} . "\n");
+			}
+			else{
+				print "data_blob\n";
+				print("====================== ASCII\n");
+				my $valmake =  make_ascii($record->{'data_blob'}) . "\n";
+				print $record->{'data_blob'};
+				print $valmake;
+				}
+		}
+	}
+closeSnortUnified();
+
+
+sub make_hex() {
+		my $data = shift;
+		return unpack("h* ",$data);
+}
+
+sub make_ascii() {
+		my $data = shift;
+		print $data;
+		my $asc = unpack('a*', $data);
+		$asc =~ tr/A-Za-z0-9;:\"\'.,<>[]\\|?\/\`~!\@#$%^&*()_\-+={}/./c;
+		return $asc;
+}
 
 __END__
     
