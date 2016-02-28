@@ -7,10 +7,11 @@ use Getopt::Long qw(GetOptions);
 use Pod::Usage;
 use Data::Dumper;
 
-
+	#variables para las opciones del programa
     my ($help,$cont,$dir,$org,$log);
     my @batch;
 
+    #se obtienen las opciones de la linea de comandos
     GetOptions(
         'help|h' 			=> 	\$help,
         'batch|b=s' 		=> 	\@batch,
@@ -21,6 +22,7 @@ use Data::Dumper;
 
     )or die "Modo de uso: perl generador.pl [-h|--help] [-b|--batch logfile1..] [-c|--continious] [-d|--directory path] [-o|--origin path] [-l|--log path]\n";
     
+    #si se selecciona la opcion -h o --help se muestra la documentacion definida al final de este archivo
     pod2usage(-verbose => 2) if ($help);
      
     
