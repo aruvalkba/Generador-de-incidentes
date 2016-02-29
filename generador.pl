@@ -18,12 +18,16 @@ use Socket;
         'help|h' 			=> 	\$help,
         'batch|b=s' 		=> 	\@batch,
         'continious|c' 		=> 	\$cont,
-        'directory|d=s' 	=>	\$dir,
+        'directory|d=s' 	=>	\&directory,
         'origin|o=s'		=>	\$org,
         'log|l=s'			=>	\$log,
 
     )or die "Modo de uso: perl generador.pl [-h|--help] [-b|--batch logfile1..] [-c|--continious] [-d|--directory path] [-o|--origin path] [-l|--log path]\n";
     
+
+    #if($dir){
+    #    say $dir;
+    #}
     #si se selecciona la opcion -h o --help se muestra la documentacion definida al final de este archivo
     pod2usage(-verbose => 2) if ($help);
      
@@ -45,7 +49,9 @@ use Socket;
 
 
     sub directory {
-
+        my ($dir_name, $dir_value) = @_;
+        print $dir_value . "\n";
+        mkdir $dir_value, 0777;
     }
 
 
@@ -59,26 +65,31 @@ use Socket;
     }
 
     my $record; #variable para cada evento IDS y paquete del archivo
-	my $UF_DATA = openSnortUnified(shift); #se lee el archivo de snort
+    my $UF_DATA = openSnortUnified(shift); #se lee el archivo de snort
 
-	#se muestra en pantalla el contenido del archivo
-	while($record = readSnortUnified2Record()){
-		print "record type " . $record->{'TYPE'} . " is " . $UNIFIED2_TYPES->{$record->{'TYPE'}} . "\n";
-		foreach my $field ( @{$record->{'FIELDS'}} ){
-			if ($field ne 'pkt' && $field ne 'data_blob'){
-				print("Campo " . $field . " : " . $record->{$field} . "\n");
-			}
-			else{
-				print "data_blob\n";
-				print("====================== ASCII\n");
-				my $valmake =  make_ascii($record->{'data_blob'}) . "\n";
-				print $record->{'data_blob'};
-				print $valmake;
-				}
-		}
-	}
+    #se muestra en pantalla el contenido del archivo
+    while(my $record = readSnortUnified2Record()){
+        print "record type " . $record->{'TYPE'} . " is " . $UNIFIED2_TYPES->{$record->{'TYPE'}} . "\n";
+        print "sip " . $record->{'sip'} . "\n" if defined $record->{'sip'};
+        print "protocol " . $record->{'protocol'} . "\n" if defined $record->{'protocol'};
+        print "event_id " . $record->{'event_id'} . "\n" if defined $record->{'event_id'};
+        foreach my $field ( @{$record->{'FIELDS'}} ){
+
+            if ($field ne 'pkt' && $field ne 'data_blob'){
+                print("Campo " . $field . " : " . $record->{$field} . "\n");
+            }
+            else{
+                print "data_blob\n";
+                print("====================== ASCII\n");
+                #my $valmake =  make_ascii($record->{'data_blob'}) . "\n";
+                print $record->{'data_blob'} if defined $record->{'data_blob'};
+                #print $valmake;
+                }
+        }
+    }
 closeSnortUnified();
 
+    
 
 sub make_hex() {
 		my $data = shift;
