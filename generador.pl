@@ -3,9 +3,9 @@
 use strict;
 use warnings;
 use 5.010;
-use Getopt::Long qw(GetOptions);	
+use Getopt::Long qw(GetOptions);    
 use Pod::Usage;
-use Data::Dumper;
+#use Data::Dumper;
 use SnortUnified(qw(:ALL));
 use Socket;
 
@@ -60,25 +60,77 @@ use Socket;
 
     my $record; #variable para cada evento IDS y paquete del archivo
 	my $UF_DATA = openSnortUnified(shift); #se lee el archivo de snort
+    my $filename = 'procesado.log';
+    my $txtname = 'procesado.txt';
+    my %eventos;
+    my $eventos = {};
+    my $primero;
+    my $ultimo;
+    my %contIPV4;
+    my %contIPV6;
+    
+    #apertura del nuevo archivo unified2
+    open(my $u2, '>',$filename) or die "No se abrio el archivo '$filename' $!";
+    binmode($u2); #la escritura se hace en modo binario
 
-	#se muestra en pantalla el contenido del archivo
+    #mientras haya eventos en el archivo se leen
 	while($record = readSnortUnified2Record()){
-		print "record type " . $record->{'TYPE'} . " is " . $UNIFIED2_TYPES->{$record->{'TYPE'}} . "\n";
-		foreach my $field ( @{$record->{'FIELDS'}} ){
-			if ($field ne 'pkt' && $field ne 'data_blob'){
-				print("Campo " . $field . " : " . $record->{$field} . "\n");
-			}
-			else{
-				print "data_blob\n";
-				print("====================== ASCII\n");
-				my $valmake =  make_ascii($record->{'data_blob'}) . "\n";
-				print $record->{'data_blob'};
-				print $valmake;
-				}
-		}
-	}
-closeSnortUnified();
+        #se guardan eventos IPV4 o IPV6 
+        if($record->{'TYPE'} == 7 || $record->{'TYPE'} == 72){
+            #si los valores del evento  estan en el hash se agrega como ultimo evento 
+            if(exists $eventos{$record->{'sig_id'},$record->{'sip'},$record->{'protocol'}}){
+                $eventos{$record->{'sig_id'},$record->{'sip'},$record->{'protocol'}}{'ultimo'} = $record;
+                #$contIPV4{$_}++ if{$record->{'TYPE'}==7};
+                #$contIPV6{$_}++ if{$record->{'TYPE'}==72};
+                #print "se agrego ultimo evento\n";
 
+                #leemos el siguiente evento, el cual es el paquete asociado al evento anterior
+                my  $paq = readSnortUnified2Record();
+                #guardamos el ultimo evento
+                #se guarda el paquete del ultimo evento
+                $eventos{$record->{'sig_id'},$record->{'sip'},$record->{'protocol'}}{'ultimo_paq'} = $paq;
+                #print "se agrego ultimo paquete\n";  
+
+            }
+            #si las llaves del evento no estan en el hash, se agrega como primer evento
+            elsif(!exists $eventos{$record->{'sig_id'},$record->{'sip'},$record->{'protocol'}}){
+                $eventos{$record->{'sig_id'},$record->{'sip'},$record->{'protocol'}}{'primero'} = $record;
+                #print "se agrego primer evento\n";
+
+                #se guarda el paquete del primer evento
+                my  $paq = readSnortUnified2Record();
+                $eventos{$record->{'sig_id'},$record->{'sip'},$record->{'protocol'}}{'primer_paq'} = $paq;
+                #print "se agrego primer paquete\n";
+
+                
+            }       
+        }
+    }   
+
+closeSnortUnified();
+#print Dumper(%eventos);
+
+
+foreach my $key(keys  %eventos){
+    #pack al primer evento
+    print $u2 pack('NN',$eventos{$key}{primero}{TYPE},$eventos{$key}{primero}{SIZE}).$eventos{$key}{primero}{raw_record};
+    #pack al primer paquete
+    print $u2 pack('NN',$eventos{$key}{primer_paq}{TYPE},$eventos{$key}{primer_paq}{SIZE}).$eventos{$key}{primer_paq}{raw_record};
+
+    #pack al ultimo record
+    print $u2 pack('NN',$eventos{$key}{ultimo}{TYPE},$eventos{$key}{ultimo}{SIZE}).$eventos{$key}{ultimo}{raw_record};
+    #pack al ultimo paquete
+    print $u2 pack('NN',$eventos{$key}{ultimo_paq}{TYPE},$eventos{$key}{ultimo_paq}{SIZE}).$eventos{$key}{ultimo_paq}{raw_record};
+    
+    
+}
+close $u2;
+
+open(my $txt, '>',$txtname) or die "No se abrio el archivo '$txtname' $!";
+print $txt "ID incidente \t|\t No. eventos\n\n ";
+foreach my $str(sort keys %contIPV4){ printf $txt "%i\n", $str, $contIPV4{$str} }
+#foreach my $str(sort keys %contIPV6){ printf $txt "%i\n", $str, $contIPV6{$str} }
+close $txt;
 
 sub make_hex() {
 		my $data = shift;
