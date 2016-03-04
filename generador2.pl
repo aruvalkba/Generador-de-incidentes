@@ -64,45 +64,48 @@ use Socket;
     my $txtname = 'procesado.txt';
     my %eventos;
     my $eventos = {};
-    my $primero;
-    my $ultimo;
-    my %contIPV4;
-    my %contIPV6;
-    
+    #my $primero;
+    #my $ultimo;
+    my %evento_grupo;
+    my $evento_grupo = {};
+
     #apertura del nuevo archivo unified2
     open(my $u2, '>',$filename) or die "No se abrio el archivo '$filename' $!";
     binmode($u2); #la escritura se hace en modo binario
 
     #mientras haya eventos en el archivo se leen
 	while($record = readSnortUnified2Record()){
+        my $id=1;
+        my $total=1;
         #se guardan eventos IPV4 o IPV6 
         if($record->{'TYPE'} == 7 || $record->{'TYPE'} == 72){
             #si los valores del evento  estan en el hash se agrega como ultimo evento 
             if(exists $eventos{$record->{'sig_id'},$record->{'sip'},$record->{'protocol'}}){
                 $eventos{$record->{'sig_id'},$record->{'sip'},$record->{'protocol'}}{'ultimo'} = $record;
-                #$contIPV4{$_}++ if{$record->{'TYPE'}==7};
-                #$contIPV6{$_}++ if{$record->{'TYPE'}==72};
                 #print "se agrego ultimo evento\n";
+
+                #se agrega un identificador al grupo de eventos que comparten la misma IP de origen,
+                #el protocolo y el tipo de alerta
+                $evento_grupo{'id'} = $id;
+                $evento_grupo{'total'} = $total++;
 
                 #leemos el siguiente evento, el cual es el paquete asociado al evento anterior
                 my  $paq = readSnortUnified2Record();
-                #guardamos el ultimo evento
                 #se guarda el paquete del ultimo evento
                 $eventos{$record->{'sig_id'},$record->{'sip'},$record->{'protocol'}}{'ultimo_paq'} = $paq;
                 #print "se agrego ultimo paquete\n";  
-
             }
             #si las llaves del evento no estan en el hash, se agrega como primer evento
             elsif(!exists $eventos{$record->{'sig_id'},$record->{'sip'},$record->{'protocol'}}){
                 $eventos{$record->{'sig_id'},$record->{'sip'},$record->{'protocol'}}{'primero'} = $record;
                 #print "se agrego primer evento\n";
+                $evento_grupo{'id'} = $id++;
+                $evento_grupo{'total'} = $total;
 
                 #se guarda el paquete del primer evento
                 my  $paq = readSnortUnified2Record();
                 $eventos{$record->{'sig_id'},$record->{'sip'},$record->{'protocol'}}{'primer_paq'} = $paq;
                 #print "se agrego primer paquete\n";
-
-                
             }       
         }
     }   
@@ -124,8 +127,7 @@ close $u2;
 
 open(my $txt, '>',$txtname) or die "No se abrio el archivo '$txtname' $!";
 print $txt "ID incidente \t|\t No. eventos\n\n ";
-foreach my $str(sort keys %contIPV4){ printf $txt "%i\n", $str, $contIPV4{$str} }
-#foreach my $str(sort keys %contIPV6){ printf $txt "%i\n", $str, $contIPV6{$str} }
+foreach my $key(keys %evento_grupo){ print "$evento_grupo{$key}\n";}
 close $txt;
 
 sub make_hex() {

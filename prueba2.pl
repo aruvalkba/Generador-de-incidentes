@@ -110,15 +110,19 @@ use Socket;
 closeSnortUnified();
 #print Dumper(%eventos);
 
+
 foreach my $key(keys  %eventos){
     #pack al primer evento
     print $u2 pack('NN',$eventos{$key}{primero}{TYPE},$eventos{$key}{primero}{SIZE}).$eventos{$key}{primero}{raw_record};
     #pack al primer paquete
     print $u2 pack('NN',$eventos{$key}{primer_paq}{TYPE},$eventos{$key}{primer_paq}{SIZE}).$eventos{$key}{primer_paq}{raw_record};
+
     #pack al ultimo record
     print $u2 pack('NN',$eventos{$key}{ultimo}{TYPE},$eventos{$key}{ultimo}{SIZE}).$eventos{$key}{ultimo}{raw_record};
     #pack al ultimo paquete
-    print $u2 pack('NN',$eventos{$key}{ultimo_paq}{TYPE},$eventos{$key}{ultimo_paq}{SIZE}).$eventos{$key}{ultimo_paq}{raw_record};    
+    print $u2 pack('NN',$eventos{$key}{ultimo_paq}{TYPE},$eventos{$key}{ultimo_paq}{SIZE}).$eventos{$key}{ultimo_paq}{raw_record};
+    
+    
 }
 close $u2;
 
