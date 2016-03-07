@@ -15,11 +15,12 @@ use Socket;
     my @batch;
     my ($dir_set, $dir_value, $ori_get, $ori_value, $logi_test, $logi_val);
     my $filetest;
+    my $prueba;
     #se obtienen las opciones de la linea de comandos
     GetOptions(
         'help|h' 			=> 	\&help,
         'batch|b=s' 		=> 	\@batch,
-        'continious|c' 		=> 	\$cont,
+        'continious|c' 		=> 	\&continious,
         'directory|d=s' 	=>	\&dir,
         'origin|o=s'		=>	\&org,
         'log|l=s'			=>	\&logi,
@@ -37,13 +38,6 @@ use Socket;
     #if(@batch){
     #    batch();
     #}
-    
-    my $inotify = new Linux::Inotify2;
-    $dir = "archivos";
-    opendir(DIR, $dir);
-    while(readdir DIR){
-        -d $_ and $inotify->watch($_, IN_CREATE, \&handle_new);
-    }
 
     sub help{
         print "
@@ -108,8 +102,103 @@ OPCIONES
 
 
     sub continious {
-        
+        my ($cont_set, $cont_val) = shift;
+        if($cont_set){
+            my $inotify = new Linux::Inotify2;
 
+            my $dir = "./archivos";
+
+            #$inotify->watch($dir, IN_CREATE, sub {
+            #    my $event = shift;
+            #    my $name = $event->fullname;
+            #    print $name . "se ha creado un archivo";
+            #});
+
+            $inotify->watch($dir, IN_CREATE);
+            print "hola";
+            
+            while(){
+                my @eventos = $inotify->read;
+                unless (@eventos > 0) {
+                    print "read error $!";
+                    last;
+                }
+
+                foreach my $event (@eventos){
+                    my $name = $event->fullname;
+                    print $event->name . " was created\n" if $event->IN_CREATE;
+                    print $name . " ya fue creado\n" if $event->IN_CREATE;
+                    prueba($name) if $event->IN_CREATE;
+                    #print "holaprint - $name";
+                    #print Dumper($event->fullname) . " was created\n" if $event->IN_CREATE;
+                    #print $danfile $name if $event->IN_CREATE;
+                }
+            }
+        }
+        #print "$cont_set - $cont_val";
+    }
+
+    sub prueba {
+        my ($prueba_val, $prueba_set) = @_;
+        #print "1\t" . $prueba_val . "\t2\t" . $prueba_set . "\tEsta es una prueba\n";
+        my $UF_DATA = openSnortUnified($prueba_val);
+        my $record;
+        my %eventos;
+        my %contIPV4;
+        my $eventos = {};
+        my $filenametxt = "./continuo/procesado-continuo.txt";
+        my $filenamelog = "./continuo/procesado-continuo.log";
+        open(my $log, '>',$filenametxt) or die "No se abrio el archivo '$filenametxt' $!";
+        print $log "Se ha iniciado la lectura del archivo";    
+        open(my $u2, '>',$filenamelog) or die "No se abrio el archivo '$filenamelog' $!";
+        binmode($u2); #la escritura se hace en modo binario
+        my $localtime2 = localtime;
+        while($record = readSnortUnified2Record()){
+            #se guardan eventos IPV4 o IPV6 
+            if($record->{'TYPE'} == 7 || $record->{'TYPE'} == 72){
+                #si los valores del evento  estan en el hash se agrega como ultimo evento 
+                if(exists $eventos{$record->{'sig_id'},$record->{'sip'},$record->{'protocol'}}){
+                    $eventos{$record->{'sig_id'},$record->{'sip'},$record->{'protocol'}}{'ultimo'} = $record;
+                    print $log "se agrego ultimo evento $localtime2\n";
+                    #leemos el siguiente evento, el cual es el paquete asociado al evento anterior
+                    my  $paq = readSnortUnified2Record();
+                    #guardamos el ultimo evento
+                    #se guarda el paquete del ultimo evento
+                    $eventos{$record->{'sig_id'},$record->{'sip'},$record->{'protocol'}}{'ultimo_paq'} = $paq;
+                    print $log "se agrego ultimo paquete $localtime2\n";
+                }
+                #si las llaves del evento no estan en el hash, se agrega como primer evento
+                elsif(!exists $eventos{$record->{'sig_id'},$record->{'sip'},$record->{'protocol'}}){
+                    $eventos{$record->{'sig_id'},$record->{'sip'},$record->{'protocol'}}{'primero'} = $record;
+                    print $log "se agrego primer evento $localtime2\n";
+                    #se guarda el paquete del primer evento
+                    my  $paq = readSnortUnified2Record();
+                    $eventos{$record->{'sig_id'},$record->{'sip'},$record->{'protocol'}}{'primer_paq'} = $paq;
+                    print $log "se agrego primer paquete $localtime2\n";
+                }
+            }
+        }
+        closeSnortUnified();
+        print $log "Se ha cerrado el archivo";
+        foreach my $key(keys  %eventos){
+            #pack al primer evento
+            print $u2 pack('NN',$eventos{$key}{primero}{TYPE},$eventos{$key}{primero}{SIZE}).$eventos{$key}{primero}{raw_record};
+            #pack al primer paquete
+            print $u2 pack('NN',$eventos{$key}{primer_paq}{TYPE},$eventos{$key}{primer_paq}{SIZE}).$eventos{$key}{primer_paq}{raw_record};
+            #pack al ultimo record
+            print $u2 pack('NN',$eventos{$key}{ultimo}{TYPE},$eventos{$key}{ultimo}{SIZE}).$eventos{$key}{ultimo}{raw_record};
+            #pack al ultimo paquete
+            print $u2 pack('NN',$eventos{$key}{ultimo_paq}{TYPE},$eventos{$key}{ultimo_paq}{SIZE}).$eventos{$key}{ultimo_paq}{raw_record};            
+        }
+        close $u2;
+
+        my $txtname = "./continuo/texto-claro.txt";
+        open(my $txt, '>',$txtname) or die "No se abrio el archivo '$txtname' $!";
+        print $txt "ID incidente \t|\t No. eventos\n\n ";
+        foreach my $str(sort keys %contIPV4){ printf $txt "%i\n", $str, $contIPV4{$str} }
+        #foreach my $str(sort keys %contIPVprueba $txt "%i\n", $str, $contIPV6{$str} }
+        close $txt;
+        close $log;
     }
 
     sub watch_new {
@@ -124,8 +213,8 @@ OPCIONES
         ($dir_set, $dir_value) = @_;
         #print $dir_value . "\n";
         mkdir $dir_value, 0777;
-    }
 
+    }
 
     sub org {
         my ($ori_get, $ori_value) = @_;
